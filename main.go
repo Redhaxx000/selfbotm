@@ -14,6 +14,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var ticker *time.Ticker
+var stopChan chan bool
+var currentGuildID, currentMessage string
+
 func main() {
 	// Get token from environment variable for security
 	token := os.Getenv("DISCORD_TOKEN")
@@ -59,7 +63,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		s.ChannelMessageSend(m.ChannelID, "Pong!")
 	}
 
-	// Handle mass DM command: !massdm <guild_id> <message>
+	// Handle one-time mass DM command: !massdm <guild_id> <message>
 	if strings.HasPrefix(m.Content, "!massdm ") {
 		parts := strings.SplitN(m.Content, " ", 3)
 		if len(parts) < 3 {
@@ -69,6 +73,46 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		guildID := parts[1]
 		message := parts[2]
 		go massDM(s, guildID, message, m.ChannelID) // Run in goroutine to avoid blocking
+	}
+
+	// Handle start periodic mass DM: !startmassdm <guild_id> <message>
+	if strings.HasPrefix(m.Content, "!startmassdm ") {
+		if ticker != nil {
+			s.ChannelMessageSend(m.ChannelID, "Periodic mass DM already running. Use !stopmassdm to stop it first.")
+			return
+		}
+		parts := strings.SplitN(m.Content, " ", 3)
+		if len(parts) < 3 {
+			s.ChannelMessageSend(m.ChannelID, "Usage: !startmassdm <guild_id> <message>")
+			return
+		}
+		currentGuildID = parts[1]
+		currentMessage = parts[2]
+		stopChan = make(chan bool)
+		ticker = time.NewTicker(2 * time.Minute) // Every 2 minutes
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					massDM(s, currentGuildID, currentMessage, m.ChannelID)
+				case <-stopChan:
+					ticker.Stop()
+					ticker = nil
+					s.ChannelMessageSend(m.ChannelID, "Periodic mass DM stopped.")
+					return
+				}
+			}
+		}()
+		s.ChannelMessageSend(m.ChannelID, "Periodic mass DM started. Sending every 2 minutes.")
+	}
+
+	// Handle stop periodic mass DM: !stopmassdm
+	if m.Content == "!stopmassdm" {
+		if ticker == nil {
+			s.ChannelMessageSend(m.ChannelID, "No periodic mass DM is running.")
+			return
+		}
+		stopChan <- true
 	}
 }
 
