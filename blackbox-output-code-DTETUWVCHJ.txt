@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: discord-selfbot
+    env: go
+    buildCommand: go build -o main .
+    startCommand: ./main
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DISCORD_TOKEN
+        value: YOUR_ACTUAL_DISCORD_USER_TOKEN_HERE  # Replace or set via Render dashboard
