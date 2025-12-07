@@ -1,4 +1,4 @@
-module github.com/yourusername/your-repo-name
+module github.com/Redhaxx000/selfbotm
 
 go 1.18
 
